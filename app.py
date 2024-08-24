@@ -4,7 +4,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 
-API_TOKEN = 'YOUR_API_TOKEN'
+API_TOKEN = 'Your API Token'
 bot = telebot.TeleBot(API_TOKEN)
 
 chrome_options = Options()
@@ -40,8 +40,6 @@ def verificar_casa_aluguel(preçoAluguel):
     finally:
         driver.quit()
 
-
-
 def verificar_apartamento_aluguel(preçoAluguel):
     try:
         driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -61,6 +59,64 @@ def verificar_apartamento_aluguel(preçoAluguel):
                     apartamento += " Campos"
                 if preço in apartamento:
                     lista_apartamentos.append(apartamento)
+        print(lista_apartamentos)
+        print(apartamentos_separadas)
+        return lista_apartamentos
+    except Exception as e:
+        print(f'Erro ao achar apartamentos com o preço: {str(e)}')
+        return []
+    finally:
+        driver.quit()
+
+def verificar_casa_venda(preçoVenda):
+    try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver.get("https://www.chavesnamao.com.br/casas-a-venda/sp-sao-jose-dos-campos/")
+
+        div_elements = driver.find_elements(By.CSS_SELECTOR, "div.imoveis__Card-obm8pe-0.tNifl.first")
+        preço = f"R$ {preçoVenda}"
+
+        lista_casas = []
+        for element in div_elements:
+            texto = element.text
+
+            casas_separadas = texto.split("Testee")
+            for i, casa in enumerate(casas_separadas):
+                casa = casa.strip()
+                if i < len(casas_separadas) - 1:
+                    casa += " Paulo"
+                if preço in casa:
+                    lista_casas.append(casa)
+
+        print(lista_casas)
+        print(casas_separadas)
+        return lista_casas
+    except Exception as e:
+        print(f'Erro ao achar casas com o preço: {str(e)}')
+        return []
+    finally:
+        driver.quit()
+
+def verificar_apartamento_venda(preçoVenda):
+    try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver.get("https://www.chavesnamao.com.br/apartamentos-a-venda/sp-sao-jose-dos-campos/")
+
+        div_elements = driver.find_elements(By.CSS_SELECTOR, "div.imoveis__Card-obm8pe-0.tNifl.first")
+        preço = f"R$ {preçoVenda}"
+
+        lista_apartamentos = []
+        for element in div_elements:
+            texto = element.text
+
+            apartamentos_separadas = texto.split("Testee")
+            for i, apartamento in enumerate(apartamentos_separadas):
+                apartamento = apartamento.strip()
+                if i < len(apartamentos_separadas) - 1:
+                    apartamento += " Paulo"
+                if preço in apartamento:
+                    lista_apartamentos.append(apartamento)
+
         print(lista_apartamentos)
         print(apartamentos_separadas)
         return lista_apartamentos
@@ -139,6 +195,59 @@ def executorComandos(message):
             bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
             estado_aluguel_preço_apartamento[message.chat.id] = False
         estado_aluguel_preço_apartamento[message.chat.id] = False
+
+    elif estado_venda.get(message.chat.id):
+        imovel = message.text.strip().lower()
+
+        if imovel == 'casas' or imovel == 'casa':
+            bot.send_message(message.chat.id, 'Muito bem, será casa então!')
+            bot.reply_to(message, 'Para começar, informe o preço TOTAL que gostaria de pagar pela casa:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
+            estado_venda_preço_casa[message.chat.id] = True
+            estado_venda[message.chat.id] = False
+
+        elif imovel == 'apartamentos' or imovel == 'apartamento':
+            bot.send_message(message.chat.id, 'Muito bem, será apartamento então!')
+            bot.reply_to(message, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo apartamento:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
+            estado_venda_preço_apartamento[message.chat.id] = True
+            estado_venda[message.chat.id] = False
+
+    elif estado_venda_preço_casa.get(message.chat.id):
+        preçoVenda = message.text.strip()
+        bot.send_message(message.chat.id, f'Muito bem, irei pesquisar casas para venda por {preçoVenda}')
+
+        lista_casas = verificar_casa_venda(preçoVenda)
+
+        if lista_casas:
+            bot.send_message(message.chat.id, 'Encontrei as seguintes casas disponíveis para venda:')
+
+            for casa in lista_casas:
+                bot.send_message(message.chat.id, f'{casa}')
+
+            bot.send_message(message.chat.id, 'https://www.chavesnamao.com.br/casas-a-venda/sp-sao-jose-dos-campos/')
+        
+        else:
+            bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
+            estado_venda_preço_casa[message.chat.id] = False
+        estado_venda_preço_casa[message.chat.id] = False
+    
+    elif estado_venda_preço_apartamento.get(message.chat.id):
+        preçoVenda = message.text.strip()
+        bot.send_message(message.chat.id, f'Muito bem, irei pesquisar apartamentos para venda por {preçoVenda}')
+
+        lista_apartamentos = verificar_apartamento_venda(preçoVenda)
+
+        if lista_apartamentos:
+            bot.send_message(message.chat.id, 'Encontrei os seguintes apartamentos disponíveis para venda:')
+
+            for apartamento in lista_apartamentos:
+                bot.send_message(message.chat.id, f'{apartamento}')
+
+            bot.send_message(message.chat.id, 'https://www.chavesnamao.com.br/apartamentos-a-venda/sp-sao-jose-dos-campos/')
+        
+        else:
+            bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
+            estado_venda_preço_apartamento[message.chat.id] = False
+        estado_venda_preço_apartamento[message.chat.id] = False
 
     else:
         bot.reply_to(message, 'Desculpe, não entendi. Tente um dos comandos:')
