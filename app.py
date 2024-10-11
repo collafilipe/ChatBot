@@ -11,7 +11,7 @@ chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--disable-gpu")
 
-service = Service('chromedriver')
+service = Service('C:\\Users\\Manhã\\Documents\\chromedriver-win64\\chromedriver.exe')
 
 def verificar_casa_aluguel(preçoAluguel):
     try:
