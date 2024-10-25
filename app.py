@@ -7,14 +7,14 @@ from telebot import types
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-API_TOKEN = '7212526958:AAFQainf92M6KV_H7PFuywCOavW9T7HiVYg'  # Replace with your actual token
+API_TOKEN = '7212526958:AAFQainf92M6KV_H7PFuywCOavW9T7HiVYg'  # Coloque seu token aqui
 bot = telebot.TeleBot(API_TOKEN)
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--disable-gpu")
 
-service = Service('chromedriver-win64/chromedriver.exe')
+service = Service('chromedriver-win64\\chromedriver.exe')
 
 def verificar_casa_aluguel(preçoAluguel):
     try:
@@ -26,11 +26,14 @@ def verificar_casa_aluguel(preçoAluguel):
 
         lista_casas = []
         for element in div_elements:
-            texto2 = element.text
-            if "R$" in texto2:  # Correct price detection
-                preço_elemento = float(texto2.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
-                if preço_elemento <= preço_max:
-                    lista_casas.append(texto2)
+            texto = element.text
+            
+            if "R$" in texto:
+                preco_total = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
+                if preco_total <= preço_max:
+                    link_element = element.find_element(By.TAG_NAME, "a")  # Altere conforme necessário
+                    link = link_element.get_attribute("href")
+                    lista_casas.append((texto, link))
 
         return lista_casas
     except Exception as e:
@@ -50,10 +53,13 @@ def verificar_apartamento_aluguel(preçoAluguel):
         lista_apartamentos = []
         for element in div_elements:
             texto = element.text
-            if "R$" in texto:  # Correct price detection
-                preço_elemento = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
-                if preço_elemento <= preço_max:
-                    lista_apartamentos.append(texto)
+            
+            if "R$" in texto:
+                preco_total = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
+                if preco_total <= preço_max:
+                    link_element = element.find_element(By.TAG_NAME, "a")  # Altere conforme necessário
+                    link = link_element.get_attribute("href")
+                    lista_apartamentos.append((texto, link))
 
         return lista_apartamentos
     except Exception as e:
@@ -73,11 +79,12 @@ def verificar_casa_venda(preçoVenda):
         lista_casas = []
         for element in div_elements:
             texto = element.text
-            if "R$" in texto:  # Correct price detection
-                preço_elemento = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
-                if preço_elemento <= preço_max:
+            
+            if "R$" in texto:
+                preco_total = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
+                if preco_total <= preço_max:
                     link = element.find_element(By.TAG_NAME, "a").get_attribute("href")
-                    lista_casas.append((texto, link)) 
+                    lista_casas.append((texto, link))
 
         return lista_casas
     except Exception as e:
@@ -97,11 +104,12 @@ def verificar_apartamento_venda(preçoVenda):
         lista_apartamentos = []
         for element in div_elements:
             texto = element.text
-            if "R$" in texto:  # Correct price detection
-                preço_elemento = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
-                if preço_elemento <= preço_max:
+            
+            if "R$" in texto:
+                preco_total = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
+                if preco_total <= preço_max:
                     link = element.find_element(By.TAG_NAME, "a").get_attribute("href")
-                    lista_apartamentos.append((texto, link))  
+                    lista_apartamentos.append((texto, link))
 
         return lista_apartamentos
     except Exception as e:
@@ -169,9 +177,11 @@ def mostrar_casas_aluguel(message, chat_id):
 
     if lista_casas:
         bot.send_message(chat_id, 'Encontrei as seguintes casas disponíveis para aluguel:')
-        for casa in lista_casas:
-            bot.send_message(chat_id, casa)
-        bot.send_message(chat_id, 'https://www.quintoandar.com.br/alugar/imovel/sao-jose-dos-campos-sp-brasil/casa')
+        for casa_texto, link in lista_casas:
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("CONTATAR", url=link)
+            markup.add(btn)
+            bot.send_message(chat_id, casa_texto, reply_markup=markup)
     else:
         bot.send_message(chat_id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
 
@@ -183,9 +193,11 @@ def mostrar_apartamentos_aluguel(message, chat_id):
 
     if lista_apartamentos:
         bot.send_message(chat_id, 'Encontrei os seguintes apartamentos disponíveis para aluguel:')
-        for apartamento in lista_apartamentos:
-            bot.send_message(chat_id, apartamento)
-        bot.send_message(chat_id, 'https://www.quintoandar.com.br/alugar/imovel/sao-jose-dos-campos-sp-brasil/apartamento')
+        for apartamento_texto, link in lista_apartamentos:
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("CONTATAR", url=link)
+            markup.add(btn)
+            bot.send_message(chat_id, apartamento_texto, reply_markup=markup)
     else:
         bot.send_message(chat_id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
 
