@@ -4,15 +4,17 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from telebot import types
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-API_TOKEN = '7212526958:AAFQainf92M6KV_H7PFuywCOavW9T7HiVYg'
+API_TOKEN = '7212526958:AAFQainf92M6KV_H7PFuywCOavW9T7HiVYg'  # Replace with your actual token
 bot = telebot.TeleBot(API_TOKEN)
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--disable-gpu")
 
-service = Service('chromedriver-win64\\chromedriver.exe')
+service = Service('chromedriver-win64/chromedriver.exe')
 
 def verificar_casa_aluguel(preçoAluguel):
     try:
@@ -25,7 +27,7 @@ def verificar_casa_aluguel(preçoAluguel):
         lista_casas = []
         for element in div_elements:
             texto2 = element.text
-            if "R$" in texto2:
+            if "R$" in texto2:  # Correct price detection
                 preço_elemento = float(texto2.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
                 if preço_elemento <= preço_max:
                     lista_casas.append(texto2)
@@ -48,7 +50,7 @@ def verificar_apartamento_aluguel(preçoAluguel):
         lista_apartamentos = []
         for element in div_elements:
             texto = element.text
-            if "R$" in texto:
+            if "R$" in texto:  # Correct price detection
                 preço_elemento = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
                 if preço_elemento <= preço_max:
                     lista_apartamentos.append(texto)
@@ -71,11 +73,11 @@ def verificar_casa_venda(preçoVenda):
         lista_casas = []
         for element in div_elements:
             texto = element.text
-            if "R$" in texto:
+            if "R$" in texto:  # Correct price detection
                 preço_elemento = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
                 if preço_elemento <= preço_max:
-                    link = element.find_element(By.TAG_NAME, "a").get_attribute("href")  # Obtém o link da casa
-                    lista_casas.append((texto, link))  # Adiciona o texto e o link
+                    link = element.find_element(By.TAG_NAME, "a").get_attribute("href")
+                    lista_casas.append((texto, link)) 
 
         return lista_casas
     except Exception as e:
@@ -95,11 +97,11 @@ def verificar_apartamento_venda(preçoVenda):
         lista_apartamentos = []
         for element in div_elements:
             texto = element.text
-            if "R$" in texto:
+            if "R$" in texto:  # Correct price detection
                 preço_elemento = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
                 if preço_elemento <= preço_max:
-                    link = element.find_element(By.TAG_NAME, "a").get_attribute("href")  # Obtém o link do apartamento
-                    lista_apartamentos.append((texto, link))  # Adiciona o texto e o link
+                    link = element.find_element(By.TAG_NAME, "a").get_attribute("href")
+                    lista_apartamentos.append((texto, link))  
 
         return lista_apartamentos
     except Exception as e:
@@ -108,129 +110,115 @@ def verificar_apartamento_venda(preçoVenda):
     finally:
         driver.quit()
 
+def entender_intencao(mensagem):
+    frases_intencoes = [
+        "quero alugar uma casa",
+        "quero alugar um apartamento",
+        "quero comprar uma casa",
+        "quero comprar um apartamento",
+        "alugar casa",
+        "alugar apartamento",
+        "comprar casa",
+        "comprar apartamento"
+    ]
+
+    vetorizador = TfidfVectorizer()
+    vetor_frases = vetorizador.fit_transform(frases_intencoes)
+    vetor_mensagem = vetorizador.transform([mensagem])
+
+    similaridades = cosine_similarity(vetor_mensagem, vetor_frases)
+    indice_maior_similaridade = similaridades.argmax()
+    intencao = frases_intencoes[indice_maior_similaridade]
+
+    return intencao
+
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, 'Olá, o KassadinChatBot foi iniciado. Por favor, digite os seguintes comandos abaixo para que ele possa executar as operações:')
-    bot.send_message(message.chat.id, '/aluguel - Para ter assistência em achar algum disponível\n/venda - Para ter assistência em achar algum disponível')
-
-@bot.message_handler(commands=['aluguel'])
-def aluguel(message):
-    bot.reply_to(message, 'Gostaria de saber sobre casas ou apartamentos?')
-    estado_aluguel[message.chat.id] = True
-
-@bot.message_handler(commands=['venda'])
-def venda(message):
-    bot.reply_to(message, 'Gostaria de saber sobre casas ou apartamentos?')
-    estado_venda[message.chat.id] = True
+    bot.reply_to(message, 'Olá, o KassadinChatBot foi iniciado. O que você gostaria de fazer hoje? Alugar ou comprar um imóvel?')
 
 @bot.message_handler(func=lambda message: True)
 def executorComandos(message):
-    if estado_aluguel.get(message.chat.id):
-        imovel = message.text.strip().lower()
+    intencao = entender_intencao(message.text.lower())
+    chat_id = message.chat.id
 
-        if imovel in ['casas', 'casa']:
-            bot.send_message(message.chat.id, 'Muito bem, será casa então!')
-            bot.reply_to(message, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo aluguel mensal:\n\nExemplo: 1.000, 2.000, 3.000, etc.')
-            estado_aluguel_preço_casa[message.chat.id] = True
-            estado_aluguel[message.chat.id] = False
+    if "alugar" in intencao:
+        if "casa" in intencao:
+            bot.send_message(chat_id, 'Muito bem, será casa então!')
+            bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo aluguel mensal:\n\nExemplo: 1.000, 2.000, 3.000, etc.')
+            bot.register_next_step_handler(message, lambda msg: mostrar_casas_aluguel(msg, chat_id)) 
+        elif "apartamento" in intencao:
+            bot.send_message(chat_id, 'Muito bem, será apartamento então!')
+            bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo aluguel mensal:\n\nExemplo: 1.000, 2.000, 3.000, etc.')
+            bot.register_next_step_handler(message, lambda msg: mostrar_apartamentos_aluguel(msg, chat_id)) 
 
-        elif imovel in ['apartamentos', 'apartamento']:
-            bot.send_message(message.chat.id, 'Muito bem, será apartamento então!')
-            bot.reply_to(message, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo aluguel mensal:\n\nExemplo: 1.000, 2.000, 3.000, etc.')
-            estado_aluguel_preço_apartamento[message.chat.id] = True
-            estado_aluguel[message.chat.id] = False
+    elif "comprar" in intencao:
+        if "casa" in intencao:
+            bot.send_message(chat_id, 'Muito bem, será casa então!')
+            bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pela casa:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
+            bot.register_next_step_handler(message, lambda msg: mostrar_casas_venda(msg, chat_id)) 
+        elif "apartamento" in intencao:
+            bot.send_message(chat_id, 'Muito bem, será apartamento então!')
+            bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo apartamento:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
+            bot.register_next_step_handler(message, lambda msg: mostrar_apartamentos_venda(msg, chat_id))
 
-    elif estado_aluguel_preço_casa.get(message.chat.id):
-        preçoAluguel = message.text.strip()
-        bot.send_message(message.chat.id, f'Muito bem, irei pesquisar alugueis de casas por até {preçoAluguel}')
+def mostrar_casas_aluguel(message, chat_id):
+    preçoAluguel = message.text.strip()
+    bot.send_message(chat_id, f'Muito bem, irei pesquisar alugueis de casas por até {preçoAluguel}')
 
-        lista_casas = verificar_casa_aluguel(preçoAluguel)
+    lista_casas = verificar_casa_aluguel(preçoAluguel)
 
-        if lista_casas:
-            bot.send_message(message.chat.id, 'Encontrei as seguintes casas disponíveis para aluguel:')
-            for casa in lista_casas:
-                bot.send_message(message.chat.id, casa)
+    if lista_casas:
+        bot.send_message(chat_id, 'Encontrei as seguintes casas disponíveis para aluguel:')
+        for casa in lista_casas:
+            bot.send_message(chat_id, casa)
+        bot.send_message(chat_id, 'https://www.quintoandar.com.br/alugar/imovel/sao-jose-dos-campos-sp-brasil/casa')
+    else:
+        bot.send_message(chat_id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
 
-            bot.send_message(message.chat.id, 'https://www.quintoandar.com.br/alugar/imovel/sao-jose-dos-campos-sp-brasil/casa')
+def mostrar_apartamentos_aluguel(message, chat_id):
+    preçoAluguel = message.text.strip()
+    bot.send_message(chat_id, f'Muito bem, irei pesquisar alugueis de apartamentos por até {preçoAluguel}')
 
-        else:
-            bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
-        estado_aluguel_preço_casa[message.chat.id] = False
-    
-    elif estado_aluguel_preço_apartamento.get(message.chat.id):
-        preçoAluguel = message.text.strip()
-        bot.send_message(message.chat.id, f'Muito bem, irei pesquisar alugueis de apartamentos por até {preçoAluguel}')
+    lista_apartamentos = verificar_apartamento_aluguel(preçoAluguel)
 
-        lista_apartamentos = verificar_apartamento_aluguel(preçoAluguel)
+    if lista_apartamentos:
+        bot.send_message(chat_id, 'Encontrei os seguintes apartamentos disponíveis para aluguel:')
+        for apartamento in lista_apartamentos:
+            bot.send_message(chat_id, apartamento)
+        bot.send_message(chat_id, 'https://www.quintoandar.com.br/alugar/imovel/sao-jose-dos-campos-sp-brasil/apartamento')
+    else:
+        bot.send_message(chat_id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
 
-        if lista_apartamentos:
-            bot.send_message(message.chat.id, 'Encontrei os seguintes apartamentos disponíveis para aluguel:')
-            for apartamento in lista_apartamentos:
-                bot.send_message(message.chat.id, apartamento)
+def mostrar_casas_venda(message, chat_id):
+    preçoVenda = message.text.strip()
+    bot.send_message(chat_id, f'Muito bem, irei pesquisar casas à venda por até {preçoVenda}')
 
-            bot.send_message(message.chat.id, 'https://www.quintoandar.com.br/alugar/imovel/sao-jose-dos-campos-sp-brasil/apartamento')
+    lista_casas = verificar_casa_venda(preçoVenda)
 
-        else:
-            bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
-        estado_aluguel_preço_apartamento[message.chat.id] = False
+    if lista_casas:
+        bot.send_message(chat_id, 'Encontrei as seguintes casas disponíveis para venda:')
+        for casa_texto, link in lista_casas:
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("CONTATAR", url=link)
+            markup.add(btn)
+            bot.send_message(chat_id, casa_texto, reply_markup=markup)
+    else:
+        bot.send_message(chat_id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
 
-    elif estado_venda.get(message.chat.id):
-        imovel = message.text.strip().lower()
+def mostrar_apartamentos_venda(message, chat_id):
+    preçoVenda = message.text.strip()
+    bot.send_message(chat_id, f'Muito bem, irei pesquisar apartamentos à venda por até {preçoVenda}')
 
-        if imovel in ['casas', 'casa']:
-            bot.send_message(message.chat.id, 'Muito bem, será casa então!')
-            bot.reply_to(message, 'Para começar, informe o preço TOTAL que gostaria de pagar pela casa:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
-            estado_venda_preço_casa[message.chat.id] = True
-            estado_venda[message.chat.id] = False
+    lista_apartamentos = verificar_apartamento_venda(preçoVenda)
 
-        elif imovel in ['apartamentos', 'apartamento']:
-            bot.send_message(message.chat.id, 'Muito bem, será apartamento então!')
-            bot.reply_to(message, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo apartamento:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
-            estado_venda_preço_apartamento[message.chat.id] = True
-            estado_venda[message.chat.id] = False
-
-    elif estado_venda_preço_casa.get(message.chat.id):
-        preçoVenda = message.text.strip()
-        bot.send_message(message.chat.id, f'Muito bem, irei pesquisar casas à venda por até {preçoVenda}')
-
-        lista_casas = verificar_casa_venda(preçoVenda)
-
-        if lista_casas:
-            bot.send_message(message.chat.id, 'Encontrei as seguintes casas disponíveis para venda:')
-            for casa_texto, link in lista_casas:
-                markup = types.InlineKeyboardMarkup()
-                btn = types.InlineKeyboardButton("CONTATAR", url=link)
-                markup.add(btn)
-                bot.send_message(message.chat.id, casa_texto, reply_markup=markup)
-
-        else:
-            bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
-        estado_venda_preço_casa[message.chat.id] = False
-
-    elif estado_venda_preço_apartamento.get(message.chat.id):
-        preçoVenda = message.text.strip()
-        bot.send_message(message.chat.id, f'Muito bem, irei pesquisar apartamentos à venda por até {preçoVenda}')
-
-        lista_apartamentos = verificar_apartamento_venda(preçoVenda)
-
-        if lista_apartamentos:
-            bot.send_message(message.chat.id, 'Encontrei os seguintes apartamentos disponíveis para venda:')
-            for apartamento_texto, link in lista_apartamentos:
-                markup = types.InlineKeyboardMarkup()
-                btn = types.InlineKeyboardButton("CONTATAR", url=link)
-                markup.add(btn)
-                bot.send_message(message.chat.id, apartamento_texto, reply_markup=markup)
-
-        else:
-            bot.send_message(message.chat.id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
-        estado_venda_preço_apartamento[message.chat.id] = False
-
-# Dicionários de estado
-estado_aluguel = {}
-estado_venda = {}
-estado_aluguel_preço_casa = {}
-estado_aluguel_preço_apartamento = {}
-estado_venda_preço_casa = {}
-estado_venda_preço_apartamento = {}
+    if lista_apartamentos:
+        bot.send_message(chat_id, 'Encontrei os seguintes apartamentos disponíveis para venda:')
+        for apartamento_texto, link in lista_apartamentos:
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("CONTATAR", url=link)
+            markup.add(btn)
+            bot.send_message(chat_id, apartamento_texto, reply_markup=markup)
+    else:
+        bot.send_message(chat_id, 'Desculpe, não encontrei nenhum apartamento disponível para esse valor.')
 
 bot.polling()
