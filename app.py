@@ -7,7 +7,7 @@ from telebot import types
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-API_TOKEN = '7212526958:AAFQainf92M6KV_H7PFuywCOavW9T7HiVYg'  # Coloque seu token aqui
+API_TOKEN = '6382897177:AAHYq-4Uuuv6qwhkkIBlQerqolFFny0XGbE'  # Substitua pelo seu token do bot
 bot = telebot.TeleBot(API_TOKEN)
 
 chrome_options = Options()
@@ -27,11 +27,12 @@ def verificar_casa_aluguel(preçoAluguel):
         lista_casas = []
         for element in div_elements:
             texto = element.text
-            
+            texto = texto.split(' Campos')[0] + ' Campos'
+
             if "R$" in texto:
                 preco_total = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
                 if preco_total <= preço_max:
-                    link_element = element.find_element(By.TAG_NAME, "a")  # Altere conforme necessário
+                    link_element = element.find_element(By.TAG_NAME, "a")
                     link = link_element.get_attribute("href")
                     lista_casas.append((texto, link))
 
@@ -53,6 +54,7 @@ def verificar_apartamento_aluguel(preçoAluguel):
         lista_apartamentos = []
         for element in div_elements:
             texto = element.text
+            texto = texto.split(' Campos')[0] + ' Campos'
             
             if "R$" in texto:
                 preco_total = float(texto.split("R$")[1].split()[0].replace('.', '').replace(',', '.'))
@@ -135,6 +137,11 @@ def entender_intencao(mensagem):
     vetor_mensagem = vetorizador.transform([mensagem])
 
     similaridades = cosine_similarity(vetor_mensagem, vetor_frases)
+    maior_similaridade = max(similaridades[0])
+
+    if maior_similaridade < 0.5:  # Define um limite para considerar válida
+        return None
+
     indice_maior_similaridade = similaridades.argmax()
     intencao = frases_intencoes[indice_maior_similaridade]
 
@@ -149,25 +156,44 @@ def executorComandos(message):
     intencao = entender_intencao(message.text.lower())
     chat_id = message.chat.id
 
+    if intencao is None:
+        bot.send_message(chat_id, "Desculpe, não entendi o que você quis dizer. Tente algo como:\n- Quero alugar uma casa\n- Quero comprar um apartamento\n - Quero alugar um apartamento\n - Quero comprar uma casa")
+        return
+
     if "alugar" in intencao:
         if "casa" in intencao:
             bot.send_message(chat_id, 'Muito bem, será casa então!')
             bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo aluguel mensal:\n\nExemplo: 1.000, 2.000, 3.000, etc.')
-            bot.register_next_step_handler(message, lambda msg: mostrar_casas_aluguel(msg, chat_id)) 
+            bot.register_next_step_handler(message, lambda msg: mostrar_casas_aluguel(msg, chat_id))
         elif "apartamento" in intencao:
             bot.send_message(chat_id, 'Muito bem, será apartamento então!')
             bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo aluguel mensal:\n\nExemplo: 1.000, 2.000, 3.000, etc.')
-            bot.register_next_step_handler(message, lambda msg: mostrar_apartamentos_aluguel(msg, chat_id)) 
+            bot.register_next_step_handler(message, lambda msg: mostrar_apartamentos_aluguel(msg, chat_id))
 
     elif "comprar" in intencao:
         if "casa" in intencao:
             bot.send_message(chat_id, 'Muito bem, será casa então!')
             bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pela casa:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
-            bot.register_next_step_handler(message, lambda msg: mostrar_casas_venda(msg, chat_id)) 
+            bot.register_next_step_handler(message, lambda msg: mostrar_casas_venda(msg, chat_id))
         elif "apartamento" in intencao:
             bot.send_message(chat_id, 'Muito bem, será apartamento então!')
             bot.send_message(chat_id, 'Para começar, informe o preço TOTAL que gostaria de pagar pelo apartamento:\n\nExemplo: 100.000, 200.000, 300.000, etc.')
             bot.register_next_step_handler(message, lambda msg: mostrar_apartamentos_venda(msg, chat_id))
+
+def mostrar_casas_aluguel(message, chat_id):
+    preçoAluguel = message.text.strip()
+    bot.send_message(chat_id, f'Muito bem, irei pesquisar alugueis de casas por até {preçoAluguel}')
+    lista_casas = verificar_casa_aluguel(preçoAluguel)
+
+    if lista_casas:
+        bot.send_message(chat_id, 'Encontrei as seguintes casas disponíveis para aluguel:')
+        for casa_texto, link in lista_casas:
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("CONTATAR", url=link)
+            markup.add(btn)
+            bot.send_message(chat_id, casa_texto, reply_markup=markup)
+    else:
+        bot.send_message(chat_id, 'Desculpe, não encontrei nenhuma casa disponível para esse valor.')
 
 def mostrar_casas_aluguel(message, chat_id):
     preçoAluguel = message.text.strip()
